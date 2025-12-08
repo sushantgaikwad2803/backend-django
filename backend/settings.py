@@ -10,8 +10,9 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 import os
+from pathlib import Path 
 
-from pathlib import Path
+from dotenv import load_dotenv
 import dj_database_url
 import cloudinary
 import cloudinary.uploader
@@ -29,11 +30,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-@or-9spm=nz(#$yh4_9#)7k&g42r=y4ezjl3%7^_)s^0$0460g'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get("DEBUG","False").lower()=="true"
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS").split("")
 
-
+database_url =os.environ.get("DATABASE_URL")
 # Application definition
 
 INSTALLED_APPS = [
@@ -95,6 +96,7 @@ DATABASES = {
         'PORT': '5432',
     }
 }
+DATABASES["default"]=dj_database_url.parse(database_url)
 
 cloudinary.config(
     cloud_name="drxngq1yl",
