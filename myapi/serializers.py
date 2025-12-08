@@ -37,4 +37,3 @@ class ReportSerializer(serializers.ModelSerializer):
         model = Report
         fields = ["id", "year",  'pdf_url', 'thumbnail_url']
 
-

@@ -6,7 +6,8 @@ from .views import (
     RandomCompanyReport,
     AllReportsOfCompany,
     CompanyList , 
-    RandomSixCompanies
+    RandomSixCompanies , 
+    # download_report
 )
 from . import views
 
@@ -20,9 +21,6 @@ urlpatterns = [
     # View full PDF
     path('report/view/<int:pk>/', view_pdf, name='view-pdf'),
 
-    # Generate PDF first-page preview
-    # path('pdf-first-page/<int:pk>/', GeneratePDFPreview.as_view(), name='pdf-first-page'),
-
     # Random company + report
     path('random-company-report/', RandomCompanyReport.as_view(), name='random-company-report'),
 
@@ -34,5 +32,7 @@ urlpatterns = [
     path("upload-pdf/", views.upload_pdf, name="upload_pdf"),
     
     path('upload-logo/', upload_logo, name='upload-logo'),
+    
+    # path("download-report/<int:report_id>/", download_report, name="download_report"),
     
 ]

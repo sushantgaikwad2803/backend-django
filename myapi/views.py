@@ -8,7 +8,8 @@ from pdf2image import convert_from_bytes
 from io import BytesIO
 from .serializers import ReportSerializer 
 from django.db.models.functions import Trim
-import random
+# import random
+import os
 from django.http import HttpResponse
 import cloudinary.uploader
 from django.http import JsonResponse
@@ -35,7 +36,7 @@ def view_pdf(request, pk):
 
 class RandomCompanyReport(APIView):
     def get(self, request):
-        companies = CompName.objects.order_by("?")[:10]
+        companies = CompName.objects.order_by("?")[:6]
 
         if not companies:
             raise Http404("No companies found")
@@ -64,15 +65,6 @@ class RandomCompanyReport(APIView):
 
         return Response({"results": results})
 
-
-
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from django.http import Http404
-from django.conf import settings
-
-from .models import CompName, CompInfo, Report
-from .serializers import ReportSerializer
 
 
 class AllReportsOfCompany(APIView):
@@ -189,15 +181,36 @@ class RandomSixCompanies(APIView):
 
         return Response({"companies": results})
 
-
+import requests
+from django.core.files.temp import NamedTemporaryFile
 def download_report(request, report_id):
-    report = Report.objects.get(id=report_id)
-    file_path = report.report_pdf.path
-    
-    with open(file_path, "rb") as pdf:
-        response = HttpResponse(pdf.read(), content_type="application/pdf")
+    # 1️⃣ Get the report
+    report = get_object_or_404(Report, id=report_id)
+
+    pdf_url = report.pdf_url  # Cloudinary URL
+    if not pdf_url:
+        raise Http404("PDF not found")
+
+    # 2️⃣ Fetch PDF from Cloudinary
+    try:
+        r = requests.get(pdf_url, stream=True)
+        if r.status_code != 200:
+            raise Http404("Unable to fetch PDF")
+
+        tmp = NamedTemporaryFile(delete=True)
+        for chunk in r.iter_content(chunk_size=1024):
+            if chunk:
+                tmp.write(chunk)
+        tmp.seek(0)
+
+        # 3️⃣ Return as attachment → forces download
+        response = FileResponse(tmp, as_attachment=True)
         response['Content-Disposition'] = f'attachment; filename="{report.ticker}_{report.year}.pdf"'
         return response
+
+    except Exception as e:
+        print(e)
+        raise Http404("Error downloading PDF")
     
     
 @csrf_exempt
