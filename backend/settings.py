@@ -32,7 +32,7 @@ SECRET_KEY = 'django-insecure-@or-9spm=nz(#$yh4_9#)7k&g42r=y4ezjl3%7^_)s^0$0460g
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DEBUG","False").lower()=="true"
 
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS").split("")
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "*").split(",")
 
 database_url =os.environ.get("DATABASE_URL")
 # Application definition
