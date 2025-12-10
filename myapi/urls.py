@@ -7,7 +7,7 @@ from .views import (
     AllReportsOfCompany,
     CompanyList , 
     RandomSixCompanies , 
-    # download_report
+    download_report
 )
 from . import views
 
@@ -27,12 +27,13 @@ urlpatterns = [
     # All reports of a company
     path('company-reports/<str:ticker>/<str:exchange>/', AllReportsOfCompany.as_view()),
     
+    path("download-report/<int:report_id>/", download_report),
+    
     path('random-logos/', RandomSixCompanies.as_view(), name='random-logos'),
     
     path("upload-pdf/", views.upload_pdf, name="upload_pdf"),
     
     path('upload-logo/', upload_logo, name='upload-logo'),
-    
-    # path("download-report/<int:report_id>/", download_report, name="download_report"),
+
     
 ]
