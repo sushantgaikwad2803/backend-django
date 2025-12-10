@@ -42,7 +42,7 @@ class RandomCompanyReport(APIView):
             raise Http404("No companies found")
 
         results = []
-
+ 
         for comp in companies:
             report = Report.objects.filter(ticker=comp.ticker).order_by("?").first()
 
@@ -67,27 +67,87 @@ class RandomCompanyReport(APIView):
 
 
 
-class AllReportsOfCompany(APIView):
-    def get(self, request, ticker):
+# class AllReportsOfCompany(APIView):
+#     def get(self, request, ticker):
 
-        # 1️⃣ Check company (case-insensitive)
-        company = CompName.objects.filter(ticker__iexact=ticker).values(
+#         # 1️⃣ Check company (case-insensitive)
+#         company = CompName.objects.filter(ticker__iexact=ticker).values(
+#             "name", "ticker", "logo", "exchange", "sector", "industry"
+#         ).first()
+
+#         if not company:
+#             raise Http404("Company not found")
+
+#         # 2️⃣ Optional company info
+#         comp_info = CompInfo.objects.filter(ticker__iexact=ticker).first()
+
+#         # 3️⃣ Company logo URL
+#         logo_url = company.get("logo")  # take as-is from DB
+#         if logo_url and not logo_url.startswith("http"):
+#             logo_url = request.build_absolute_uri(settings.MEDIA_URL + str(logo_url))
+
+#         # 4️⃣ Reports
+#         reports = Report.objects.filter(ticker__iexact=ticker).order_by("-year")
+#         if reports.exists():
+#             report_data = ReportSerializer(reports, many=True, context={'request': request}).data
+#             report_message = ""
+#         else:
+#             report_data = []
+#             report_message = "No reports available for this company"
+
+#         # 5️⃣ Return full company + report data
+#         return Response({
+#             "ticker": company["ticker"],
+#             "company_name": company["name"],
+#             "exchange": company["exchange"],
+#             "sector": company["sector"],
+#             "industry": company["industry"],
+#             "logo": logo_url,
+#             "employee_count": getattr(comp_info, "emp_number", "") if comp_info else "",
+#             "address": getattr(comp_info, "address", "") if comp_info else "",
+#             "description": getattr(comp_info, "info", "") if comp_info else "",
+#             "social_links": {
+#                 "instagram": getattr(comp_info, "insta_link", "") if comp_info else "",
+#                 "facebook": getattr(comp_info, "face_link", "") if comp_info else "",
+#                 "youtube": getattr(comp_info, "youtube_link", "") if comp_info else "",
+#                 "twitter": getattr(comp_info, "twitter_link", "") if comp_info else "",
+#                 "website": getattr(comp_info, "web_link", "") if comp_info else "",
+#             },
+#             "reports": report_data,
+#             "report_message": report_message
+#         })
+
+class AllReportsOfCompany(APIView):
+    def get(self, request, ticker, exchange):
+
+        # Company MATCH ticker + exchange
+        company = CompName.objects.filter(
+            ticker__iexact=ticker,
+            exchange__iexact=exchange
+        ).values(
             "name", "ticker", "logo", "exchange", "sector", "industry"
         ).first()
 
         if not company:
             raise Http404("Company not found")
 
-        # 2️⃣ Optional company info
-        comp_info = CompInfo.objects.filter(ticker__iexact=ticker).first()
+        # Optional comp info MATCH both
+        comp_info = CompInfo.objects.filter(
+            ticker__iexact=ticker,
+            exchange__iexact=exchange
+        ).first()
 
-        # 3️⃣ Company logo URL
-        logo_url = company.get("logo")  # take as-is from DB
+        # Logo handling
+        logo_url = company.get("logo")
         if logo_url and not logo_url.startswith("http"):
             logo_url = request.build_absolute_uri(settings.MEDIA_URL + str(logo_url))
 
-        # 4️⃣ Reports
-        reports = Report.objects.filter(ticker__iexact=ticker).order_by("-year")
+        # Reports MATCH ticker + exchange
+        reports = Report.objects.filter(
+            ticker__iexact=ticker,
+            exchange__iexact=exchange
+        ).order_by("-year")
+
         if reports.exists():
             report_data = ReportSerializer(reports, many=True, context={'request': request}).data
             report_message = ""
@@ -95,7 +155,6 @@ class AllReportsOfCompany(APIView):
             report_data = []
             report_message = "No reports available for this company"
 
-        # 5️⃣ Return full company + report data
         return Response({
             "ticker": company["ticker"],
             "company_name": company["name"],
@@ -116,6 +175,7 @@ class AllReportsOfCompany(APIView):
             "reports": report_data,
             "report_message": report_message
         })
+
 
 
 
@@ -176,10 +236,12 @@ class RandomSixCompanies(APIView):
                 "id": comp.id,
                 "name": comp.name,
                 "ticker": comp.ticker,
+                "exchange": comp.exchange,  # ✅ Added this
                 "logo": logo_url
             })
 
         return Response({"companies": results})
+
 
 import requests
 from django.core.files.temp import NamedTemporaryFile
@@ -219,92 +281,99 @@ def upload_pdf(request):
         if request.method != "POST":
             return JsonResponse({"error": "Use POST method"}, status=400)
 
-        if "pdf" not in request.FILES:
-            return JsonResponse({"error": "PDF file is missing"}, status=400)
+        # MULTIPLE FILES SUPPORT
+        files = request.FILES.getlist("pdf")
 
-        file = request.FILES["pdf"]
-        file_name = file.name
+        if not files:
+            return JsonResponse({"error": "PDF files are missing"}, status=400)
 
-        # Ensure PDF
-        if not file_name.lower().endswith(".pdf"):
-            return JsonResponse({"error": "Only PDF format allowed"}, status=400)
+        result_list = []
 
-        # Extract ticker + year (AIM_TCS_2002.pdf → ticker=TCS, year=2002)
-        name_without_ext = file_name.replace(".pdf", "")
-        parts = name_without_ext.split("_")
+        for file in files:
+            file_name = file.name
 
-        if len(parts) < 3:
-            return JsonResponse({"error": "Filename must be AIM_TICKER_YEAR.pdf"}, status=400)
+            if not file_name.lower().endswith(".pdf"):
+                result_list.append({
+                    "file": file_name,
+                    "status": "error",
+                    "reason": "Only PDF allowed"
+                })
+                continue
 
-        ticker = parts[1]
-        year = int(parts[2])
+            # Extract EXCHANGE_TICKER_YEAR
+            name_without_ext = file_name.replace(".pdf", "")
+            parts = name_without_ext.split("_")
 
-        # =================================================
-        # 1️⃣ Upload original PDF to Cloudinary (raw upload)
-        # =================================================
-        upload_result = cloudinary.uploader.upload(
-            file,
-            resource_type="raw",
-            folder="pdf_reports"
-        )
+            if len(parts) < 3:
+                result_list.append({
+                    "file": file_name,
+                    "status": "error",
+                    "reason": "Filename must be EXCHANGE_TICKER_YEAR.pdf"
+                })
+                continue
 
-        pdf_url = upload_result["secure_url"]
+            exchange = parts[0]
+            ticker = parts[1]
+            year = int(parts[2])
 
-        # =================================================
-        # 2️⃣ Read PDF bytes for thumbnail
-        # =================================================
-        file.open()  # Reset pointer
-        pdf_data = file.read()
+            try:
+                # Upload PDF
+                upload_result = cloudinary.uploader.upload(
+                    file,
+                    resource_type="raw",
+                    folder="pdf_reports"
+                )
+                pdf_url = upload_result["secure_url"]
 
-        # =================================================
-        # 3️⃣ Generate thumbnail using pdf2image
-        # =================================================
-        pages = convert_from_bytes(
-            pdf_data,
-            first_page=1,
-            last_page=1
-        )
+                # Read PDF bytes for thumbnail
+                file.open()
+                pdf_data = file.read()
 
-        # Resize thumbnail (optional)
-        thumb_image = pages[0]
-        thumb_image = thumb_image.resize((300, 400))
+                pages = convert_from_bytes(pdf_data, first_page=1, last_page=1)
+                thumb_image = pages[0].resize((300, 400))
 
-        # Save thumbnail to memory buffer
-        image_io = BytesIO()
-        thumb_image.save(image_io, format="JPEG")
-        image_data = image_io.getvalue()
+                image_io = BytesIO()
+                thumb_image.save(image_io, format="JPEG")
+                image_data = image_io.getvalue()
 
-        # =================================================
-        # 4️⃣ Upload thumbnail to Cloudinary
-        # =================================================
-        thumb_public_id = f"{ticker}_{year}_thumb"
+                # Upload thumbnail
+                thumb_public_id = f"{exchange}_{ticker}_{year}_thumb"
+                thumb_upload = cloudinary.uploader.upload(
+                    image_data,
+                    resource_type="image",
+                    folder="report_thumbnails",
+                    public_id=thumb_public_id,
+                    overwrite=True
+                )
+                thumbnail_url = thumb_upload["secure_url"]
 
-        thumb_upload = cloudinary.uploader.upload(
-            image_data,
-            resource_type="image",
-            folder="report_thumbnails",
-            public_id=thumb_public_id,
-            overwrite=True
-        )
+                # Save to DB
+                Report.objects.create(
+                    exchange=exchange,
+                    ticker=ticker,
+                    year=year,
+                    pdf_url=pdf_url,
+                    thumbnail_url=thumbnail_url
+                )
 
-        thumbnail_url = thumb_upload["secure_url"]
+                result_list.append({
+                    "file": file_name,
+                    "status": "success",
+                    "exchange": exchange,
+                    "ticker": ticker,
+                    "year": year
+                })
 
-        # =================================================
-        # 5️⃣ Save record in PostgreSQL
-        # =================================================
-        Report.objects.create(
-            ticker=ticker,
-            year=year,
-            pdf_url=pdf_url,
-            thumbnail_url=thumbnail_url
-        )
+            except Exception as e:
+                result_list.append({
+                    "file": file_name,
+                    "status": "error",
+                    "reason": str(e)
+                })
 
         return JsonResponse({
-            "message": "Uploaded successfully",
-            "ticker": ticker,
-            "year": year,
-            "pdf_url": pdf_url,
-            "thumbnail_url": thumbnail_url
+            "message": "Multiple PDF upload completed",
+            "results": result_list
         })
 
     except Exception as e:
@@ -312,39 +381,89 @@ def upload_pdf(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+
 @api_view(['POST'])
 def upload_logo(request):
     """
-    Upload an image to Cloudinary and update the 'logo' field in CompName table
-    for the row where exchange and ticker match the filename.
+    Upload logo → Auto extract exchange + ticker → Insert into CompName & CompInfo
+    Accepts form fields for both tables.
     """
     file = request.FILES.get('image')
     if not file:
-        return Response({"error": "No file provided"}, status=400)
+        return Response({"error": "No image file provided"}, status=400)
 
-    # Upload image to Cloudinary
+    # Upload to Cloudinary
     result = cloudinary.uploader.upload(file)
     logo_url = result.get("secure_url")
 
-    # Extract tickers/exchange from filename
-    filename = file.name.split(".")[0]  # "AIM_CRW"
+    # Extract EXCHANGE + TICKER from filename
+    filename = file.name.split(".")[0]       # AIM_TCS
     parts = filename.split("_")
 
     if len(parts) != 2:
-        return Response({"error": "Filename should be in format EXCHANGE_TICKER.png"}, status=400)
+        return Response(
+            {"error": "Filename must be EXCHANGE_TICKER.ext e.g. AIM_TCS.png"},
+            status=400
+        )
 
     exchange, ticker = parts[0], parts[1]
 
-    try:
-        # Update the row where exchange and ticker match
-        company = CompName.objects.get(exchange=exchange, ticker=ticker)
-        company.logo = logo_url
-        company.save()
-        return Response({
-            "message": "Logo updated successfully",
+    # ===================================================
+    #  READ ALL FIELDS FROM FORM
+    # ===================================================
+    name = request.data.get("name", "")
+    sector = request.data.get("sector", "")
+    industry = request.data.get("industry", "")
+
+    emp_number = request.data.get("emp_number", "")
+    address = request.data.get("address", "")
+    info = request.data.get("info", "")
+
+    insta_link = request.data.get("insta_link", "")
+    face_link = request.data.get("face_link", "")
+    youtube_link = request.data.get("youtube_link", "")
+    twitter_link = request.data.get("twitter_link", "")
+    web_link = request.data.get("web_link", "")
+    linkedin_link = request.data.get("linkedin_link", "")
+
+    # ===================================================
+    #  INSERT OR UPDATE CompName
+    # ===================================================
+    comp_name_obj, created_name = CompName.objects.update_or_create(
+        ticker=ticker,
+        defaults={
+            "name": name,
             "exchange": exchange,
-            "ticker": ticker,
-            "logo_url": logo_url
-        })
-    except CompName.DoesNotExist:
-        return Response({"error": f"No row found for exchange={exchange} and ticker={ticker}"}, status=404)
+            "sector": sector,
+            "industry": industry,
+            "logo": logo_url,
+        }
+    )
+
+    # ===================================================
+    #  INSERT OR UPDATE CompInfo
+    # ===================================================
+    comp_info_obj, created_info = CompInfo.objects.update_or_create(
+        ticker=ticker,
+        defaults={
+            "exchange": exchange,
+            "emp_number": emp_number,
+            "address": address,
+            "info": info,
+            "insta_link": insta_link,
+            "face_link": face_link,
+            "youtube_link": youtube_link,
+            "twitter_link": twitter_link,
+            "web_link": web_link,
+            "linkedin_link": linkedin_link,
+        }
+    )
+
+    return Response({
+        "message": "Data saved successfully",
+        "ticker": ticker,
+        "exchange": exchange,
+        "logo_url": logo_url,
+        "comp_name_created": created_name,   # True = new row inserted
+        "comp_info_created": created_info,
+    })

@@ -7,6 +7,7 @@ class Report(models.Model):
     year = models.IntegerField()
     pdf_url = models.TextField(null=True, blank=True)
     thumbnail_url = models.TextField(null=True, blank=True)
+    exchange = models.CharField(max_length=20, null=True, blank=True) 
 
 
     class Meta:
@@ -38,6 +39,10 @@ class CompInfo(models.Model):
     youtube_link = models.URLField(max_length=300, null=True, blank=True)
     twitter_link = models.URLField(max_length=300, null=True, blank=True)
     web_link = models.URLField(max_length=300, null=True, blank=True)
+    linkedin_link = models.URLField(max_length=300, null=True, blank=True)
+    exchange = models.CharField(max_length=20, null=True, blank=True)
+
+    
 
     class Meta:
         db_table = 'comp_info'

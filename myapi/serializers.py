@@ -13,7 +13,7 @@ class CompanySerializer(serializers.ModelSerializer):
             "ticker",
             "sector",
             "industry",
-            "exchange",
+            "exchange", 
             "logo",
             "logo_url",
         ]
@@ -35,5 +35,5 @@ class ReportSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Report
-        fields = ["id", "year",  'pdf_url', 'thumbnail_url']
+        fields = ["id", "year",  'pdf_url', 'thumbnail_url', 'exchange']
 

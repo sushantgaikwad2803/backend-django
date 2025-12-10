@@ -25,7 +25,7 @@ urlpatterns = [
     path('random-company-report/', RandomCompanyReport.as_view(), name='random-company-report'),
 
     # All reports of a company
-    path('company-reports/<str:ticker>/', AllReportsOfCompany.as_view(), name='company-reports'),
+    path('company-reports/<str:ticker>/<str:exchange>/', AllReportsOfCompany.as_view()),
     
     path('random-logos/', RandomSixCompanies.as_view(), name='random-logos'),
     
