@@ -66,57 +66,6 @@ class RandomCompanyReport(APIView):
         return Response({"results": results})
 
 
-
-# class AllReportsOfCompany(APIView):
-#     def get(self, request, ticker):
-
-#         # 1️⃣ Check company (case-insensitive)
-#         company = CompName.objects.filter(ticker__iexact=ticker).values(
-#             "name", "ticker", "logo", "exchange", "sector", "industry"
-#         ).first()
-
-#         if not company:
-#             raise Http404("Company not found")
-
-#         # 2️⃣ Optional company info
-#         comp_info = CompInfo.objects.filter(ticker__iexact=ticker).first()
-
-#         # 3️⃣ Company logo URL
-#         logo_url = company.get("logo")  # take as-is from DB
-#         if logo_url and not logo_url.startswith("http"):
-#             logo_url = request.build_absolute_uri(settings.MEDIA_URL + str(logo_url))
-
-#         # 4️⃣ Reports
-#         reports = Report.objects.filter(ticker__iexact=ticker).order_by("-year")
-#         if reports.exists():
-#             report_data = ReportSerializer(reports, many=True, context={'request': request}).data
-#             report_message = ""
-#         else:
-#             report_data = []
-#             report_message = "No reports available for this company"
-
-#         # 5️⃣ Return full company + report data
-#         return Response({
-#             "ticker": company["ticker"],
-#             "company_name": company["name"],
-#             "exchange": company["exchange"],
-#             "sector": company["sector"],
-#             "industry": company["industry"],
-#             "logo": logo_url,
-#             "employee_count": getattr(comp_info, "emp_number", "") if comp_info else "",
-#             "address": getattr(comp_info, "address", "") if comp_info else "",
-#             "description": getattr(comp_info, "info", "") if comp_info else "",
-#             "social_links": {
-#                 "instagram": getattr(comp_info, "insta_link", "") if comp_info else "",
-#                 "facebook": getattr(comp_info, "face_link", "") if comp_info else "",
-#                 "youtube": getattr(comp_info, "youtube_link", "") if comp_info else "",
-#                 "twitter": getattr(comp_info, "twitter_link", "") if comp_info else "",
-#                 "website": getattr(comp_info, "web_link", "") if comp_info else "",
-#             },
-#             "reports": report_data,
-#             "report_message": report_message
-#         })
-
 class AllReportsOfCompany(APIView):
     def get(self, request, ticker, exchange):
 
@@ -171,6 +120,7 @@ class AllReportsOfCompany(APIView):
                 "youtube": getattr(comp_info, "youtube_link", "") if comp_info else "",
                 "twitter": getattr(comp_info, "twitter_link", "") if comp_info else "",
                 "website": getattr(comp_info, "web_link", "") if comp_info else "",
+                "linkedin": getattr(comp_info, "linkedin_link", "") if comp_info else "",
             },
             "reports": report_data,
             "report_message": report_message
@@ -281,7 +231,6 @@ def upload_pdf(request):
         if request.method != "POST":
             return JsonResponse({"error": "Use POST method"}, status=400)
 
-        # MULTIPLE FILES SUPPORT
         files = request.FILES.getlist("pdf")
 
         if not files:
@@ -300,8 +249,8 @@ def upload_pdf(request):
                 })
                 continue
 
-            # Extract EXCHANGE_TICKER_YEAR
-            name_without_ext = file_name.replace(".pdf", "")
+            # EXCHANGE_TICKER_YEAR
+            name_without_ext = file_name.rsplit(".", 1)[0]
             parts = name_without_ext.split("_")
 
             if len(parts) < 3:
@@ -317,7 +266,11 @@ def upload_pdf(request):
             year = int(parts[2])
 
             try:
-                # Upload PDF
+                # -----------------------------------------------------
+                # 1️⃣ Reset pointer before Cloudinary upload
+                # -----------------------------------------------------
+                file.seek(0)
+
                 upload_result = cloudinary.uploader.upload(
                     file,
                     resource_type="raw",
@@ -325,8 +278,10 @@ def upload_pdf(request):
                 )
                 pdf_url = upload_result["secure_url"]
 
-                # Read PDF bytes for thumbnail
-                file.open()
+                # -----------------------------------------------------
+                # 2️⃣ Reset pointer before thumbnail generation
+                # -----------------------------------------------------
+                file.seek(0)
                 pdf_data = file.read()
 
                 pages = convert_from_bytes(pdf_data, first_page=1, last_page=1)
@@ -336,8 +291,11 @@ def upload_pdf(request):
                 thumb_image.save(image_io, format="JPEG")
                 image_data = image_io.getvalue()
 
-                # Upload thumbnail
+                # -----------------------------------------------------
+                # 3️⃣ Upload thumbnail
+                # -----------------------------------------------------
                 thumb_public_id = f"{exchange}_{ticker}_{year}_thumb"
+
                 thumb_upload = cloudinary.uploader.upload(
                     image_data,
                     resource_type="image",
@@ -345,9 +303,12 @@ def upload_pdf(request):
                     public_id=thumb_public_id,
                     overwrite=True
                 )
+
                 thumbnail_url = thumb_upload["secure_url"]
 
-                # Save to DB
+                # -----------------------------------------------------
+                # 4️⃣ Save in Database
+                # -----------------------------------------------------
                 Report.objects.create(
                     exchange=exchange,
                     ticker=ticker,
@@ -379,6 +340,7 @@ def upload_pdf(request):
     except Exception as e:
         print("UPLOAD ERROR:", e)
         return JsonResponse({"error": str(e)}, status=500)
+
 
 
 
