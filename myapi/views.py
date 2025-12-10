@@ -249,7 +249,7 @@ def upload_pdf(request):
                 })
                 continue
 
-            # EXCHANGE_TICKER_YEAR
+            # EXCHANGE_TICKER_YEAR.pdf
             name_without_ext = file_name.rsplit(".", 1)[0]
             parts = name_without_ext.split("_")
 
@@ -267,19 +267,24 @@ def upload_pdf(request):
 
             try:
                 # -----------------------------------------------------
-                # 1️⃣ Reset pointer before Cloudinary upload
+                # 1️⃣ RESET pointer before upload
                 # -----------------------------------------------------
                 file.seek(0)
 
-                upload_result = cloudinary.uploader.upload(
+                # -----------------------------------------------------
+                # 2️⃣ Upload LARGE PDF to Cloudinary
+                # -----------------------------------------------------
+                upload_result = cloudinary.uploader.upload_large(
                     file,
                     resource_type="raw",
-                    folder="pdf_reports"
+                    folder="pdf_reports",
+                    chunk_size=6000000   # 6MB chunks (safe for 10MB+ files)
                 )
+
                 pdf_url = upload_result["secure_url"]
 
                 # -----------------------------------------------------
-                # 2️⃣ Reset pointer before thumbnail generation
+                # 3️⃣ RESET pointer before thumbnail generation
                 # -----------------------------------------------------
                 file.seek(0)
                 pdf_data = file.read()
@@ -292,7 +297,7 @@ def upload_pdf(request):
                 image_data = image_io.getvalue()
 
                 # -----------------------------------------------------
-                # 3️⃣ Upload thumbnail
+                # 4️⃣ Upload thumbnail (normal upload is fine)
                 # -----------------------------------------------------
                 thumb_public_id = f"{exchange}_{ticker}_{year}_thumb"
 
@@ -307,7 +312,7 @@ def upload_pdf(request):
                 thumbnail_url = thumb_upload["secure_url"]
 
                 # -----------------------------------------------------
-                # 4️⃣ Save in Database
+                # 5️⃣ Save in Database
                 # -----------------------------------------------------
                 Report.objects.create(
                     exchange=exchange,
@@ -340,7 +345,6 @@ def upload_pdf(request):
     except Exception as e:
         print("UPLOAD ERROR:", e)
         return JsonResponse({"error": str(e)}, status=500)
-
 
 
 
