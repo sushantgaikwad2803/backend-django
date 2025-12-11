@@ -2,14 +2,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import Report, CompName, CompInfo
 from django.http import FileResponse, Http404
-from django.shortcuts import get_object_or_404
 from django.conf import settings
 from pdf2image import convert_from_bytes
 from io import BytesIO
 from .serializers import ReportSerializer 
 from django.db.models.functions import Trim
-# import random
-import os
+from django.db import transaction
 from django.http import HttpResponse
 import cloudinary.uploader
 from django.http import JsonResponse
@@ -22,16 +20,6 @@ class ReportList(APIView):
         reports = Report.objects.all()
         serializer = ReportSerializer(reports, many=True, context={'request': request})
         return Response(serializer.data)
-
-
-def view_pdf(request, pk):
-    report = get_object_or_404(Report, pk=pk)
-
-    if not report.report_pdf:
-        raise Http404("No PDF file available")
-
-    file_path = report.report_pdf.path
-    return FileResponse(open(file_path, "rb"), content_type="application/pdf")
 
 
 class RandomCompanyReport(APIView):
@@ -213,132 +201,6 @@ def download_report(request, report_id):
     )
     return response
 
-    
-    
-# @csrf_exempt
-# def upload_pdf(request):
-#     try:
-#         if request.method != "POST":
-#             return JsonResponse({"error": "Use POST method"}, status=400)
-
-#         files = request.FILES.getlist("pdf")
-
-#         if not files:
-#             return JsonResponse({"error": "PDF files are missing"}, status=400)
-
-#         result_list = []
-
-#         for file in files:
-#             file_name = file.name
-
-#             if not file_name.lower().endswith(".pdf"):
-#                 result_list.append({
-#                     "file": file_name,
-#                     "status": "error",
-#                     "reason": "Only PDF allowed"
-#                 })
-#                 continue
-
-#             # EXCHANGE_TICKER_YEAR.pdf
-#             name_without_ext = file_name.rsplit(".", 1)[0]
-#             parts = name_without_ext.split("_")
-
-#             if len(parts) < 3:
-#                 result_list.append({
-#                     "file": file_name,
-#                     "status": "error",
-#                     "reason": "Filename must be EXCHANGE_TICKER_YEAR.pdf"
-#                 })
-#                 continue
-
-#             exchange = parts[0]
-#             ticker = parts[1]
-#             year = int(parts[2])
-
-#             try:
-#                 # -----------------------------------------------
-#                 # 1️⃣ Read the file ONCE into memory (IMPORTANT)
-#                 # -----------------------------------------------
-#                 pdf_bytes = file.read()
-
-#                 # -----------------------------------------------
-#                 # 2️⃣ Upload PDF copy using BytesIO (safe)
-#                 # -----------------------------------------------
-#                 upload_result = cloudinary.uploader.upload_large(
-#                     BytesIO(pdf_bytes),
-#                     resource_type="raw",
-#                     folder="pdf_reports",
-#                     chunk_size=6000000
-#                 )
-
-#                 pdf_url = upload_result["secure_url"]
-
-#                 # -----------------------------------------------
-#                 # 3️⃣ Create thumbnail from memory bytes
-#                 # -----------------------------------------------
-#                 pages = convert_from_bytes(pdf_bytes, first_page=1, last_page=1)
-#                 thumb_image = pages[0].resize((300, 400))
-
-#                 image_io = BytesIO()
-#                 thumb_image.save(image_io, format="JPEG")
-#                 image_data = image_io.getvalue()
-
-#                 # -----------------------------------------------
-#                 # 4️⃣ Upload thumbnail
-#                 # -----------------------------------------------
-#                 thumb_public_id = f"{exchange}_{ticker}_{year}_thumb"
-
-#                 thumb_upload = cloudinary.uploader.upload(
-#                     image_data,
-#                     resource_type="image",
-#                     folder="report_thumbnails",
-#                     public_id=thumb_public_id,
-#                     overwrite=True
-#                 )
-
-#                 thumbnail_url = thumb_upload["secure_url"]
-
-#                 # -----------------------------------------------
-#                 # 5️⃣ Save record
-#                 # -----------------------------------------------
-#                 Report.objects.create(
-#                     exchange=exchange,
-#                     ticker=ticker,
-#                     year=year,
-#                     pdf_url=pdf_url,
-#                     thumbnail_url=thumbnail_url
-#                 )
-
-#                 result_list.append({
-#                     "file": file_name,
-#                     "status": "success",
-#                     "exchange": exchange,
-#                     "ticker": ticker,
-#                     "year": year
-#                 })
-
-#             except Exception as e:
-#                 result_list.append({
-#                     "file": file_name,
-#                     "status": "error",
-#                     "reason": str(e)
-#                 })
-
-#         return JsonResponse({
-#             "message": "Multiple PDF upload completed",
-#             "results": result_list
-#         })
-
-#     except Exception as e:
-#         print("UPLOAD ERROR:", e)
-#         return JsonResponse({"error": str(e)}, status=500)
-
-from django.db import transaction
-from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse
-from io import BytesIO
-from pdf2image import convert_from_bytes
-import cloudinary.uploader
 
 @csrf_exempt
 def upload_pdf(request):
@@ -354,7 +216,7 @@ def upload_pdf(request):
     for file in files:
         file_name = file.name
 
-        # Validate file type
+        # Validate type
         if not file_name.lower().endswith(".pdf"):
             result_list.append({
                 "file": file_name,
@@ -363,11 +225,11 @@ def upload_pdf(request):
             })
             continue
 
-        # Parse EXCHANGE_TICKER_YEAR format
+        # Parse EXCHANGE_TICKER_YEAR
         name_without_ext = file_name.rsplit(".", 1)[0]
         parts = name_without_ext.split("_")
 
-        if len(parts) < 3:
+        if len(parts) != 3:
             result_list.append({
                 "file": file_name,
                 "status": "error",
@@ -381,76 +243,83 @@ def upload_pdf(request):
         thumb_public_id = None
 
         try:
-            # Read PDF into memory (single read)
             pdf_bytes = file.read()
 
-            # ------------------------------
-            # START SAFE WRAP
-            # ------------------------------
             with transaction.atomic():
-
-                # 1️⃣ Upload PDF
+                # --------------------------
+                # 1️⃣ Upload PDF to Cloudinary
+                # --------------------------
                 pdf_public_id = f"pdf_reports/{exchange}_{ticker}_{year}"
+
                 pdf_upload = cloudinary.uploader.upload_large(
                     BytesIO(pdf_bytes),
                     public_id=pdf_public_id,
                     resource_type="raw",
                     folder="pdf_reports",
-                    chunk_size=6000000
+                    chunk_size=6000000,
+                    format="pdf",  # ✅ ensures browser can open in new tab
+                    overwrite=True
                 )
 
                 pdf_url = pdf_upload["secure_url"]
 
+                # --------------------------
                 # 2️⃣ Generate thumbnail
-                pages = convert_from_bytes(pdf_bytes, first_page=1, last_page=1)
-                thumb_image = pages[0].resize((300, 400))
+                # --------------------------
+                try:
+                    pages = convert_from_bytes(pdf_bytes, first_page=1, last_page=1)
+                    thumb_image = pages[0].resize((300, 400))
 
-                img_io = BytesIO()
-                thumb_image.save(img_io, format="JPEG")
-                img_data = img_io.getvalue()
+                    img_io = BytesIO()
+                    thumb_image.save(img_io, format="JPEG")
+                    thumb_data = img_io.getvalue()
 
-                # 3️⃣ Upload thumbnail
-                thumb_public_id = f"report_thumbnails/{exchange}_{ticker}_{year}_thumb"
-                thumb_upload = cloudinary.uploader.upload(
-                    img_data,
-                    public_id=thumb_public_id,
-                    folder="report_thumbnails",
-                    resource_type="image",
-                    overwrite=True
-                )
+                    thumb_public_id = f"report_thumbnails/{exchange}_{ticker}_{year}_thumb"
+                    thumb_upload = cloudinary.uploader.upload(
+                        thumb_data,
+                        public_id=thumb_public_id,
+                        folder="report_thumbnails",
+                        resource_type="image",
+                        overwrite=True
+                    )
 
-                thumbnail_url = thumb_upload["secure_url"]
+                    thumbnail_url = thumb_upload["secure_url"]
 
-                # 4️⃣ Insert into database
+                except Exception as thumb_err:
+                    # If thumbnail generation fails, log None
+                    thumbnail_url = None
+
+                # --------------------------
+                # 3️⃣ Insert into DB
+                # --------------------------
                 Report.objects.create(
                     exchange=exchange,
                     ticker=ticker,
                     year=year,
                     pdf_url=pdf_url,
-                    thumbnail_url=thumbnail_url
+                    thumbnail_url=thumbnail_url,
                 )
 
-            # IF ALL SUCCESS
+            # Success
             result_list.append({
                 "file": file_name,
                 "status": "success",
                 "exchange": exchange,
                 "ticker": ticker,
-                "year": year
+                "year": year,
+                "pdf_url": pdf_url,
+                "thumbnail_url": thumbnail_url
             })
 
         except Exception as e:
-
-            # -----------------------------------
-            # Delete partially uploaded files
-            # -----------------------------------
+            # Cleanup partial uploads
             try:
                 if pdf_public_id:
                     cloudinary.uploader.destroy(pdf_public_id, resource_type="raw")
                 if thumb_public_id:
                     cloudinary.uploader.destroy(thumb_public_id, resource_type="image")
             except:
-                pass  # ignore cleanup errors
+                pass
 
             result_list.append({
                 "file": file_name,
@@ -464,100 +333,6 @@ def upload_pdf(request):
     })
 
 
-
-
-# @api_view(['POST'])
-# def upload_logo(request):
-#     try:
-#         file = request.FILES.get('image')
-#         if not file:
-#             return Response({"error": "No image file provided"}, status=400)
-
-#         # Upload to Cloudinary
-#         upload = cloudinary.uploader.upload(file)
-#         logo_url = upload.get("secure_url")
-
-#         # Extract EXCHANGE + TICKER from filename
-#         filename = file.name.split(".")[0]  # e.g. TSX_TCS
-#         parts = filename.split("_")
-
-#         if len(parts) != 2:
-#             return Response(
-#                 {"error": "Filename must be EXCHANGE_TICKER.ext (e.g. TSX_TCS.png)"},
-#                 status=400
-#             )
-
-#         exchange, ticker = parts[0], parts[1]
-
-#         # ------------------------------------------------
-#         # Read all form fields
-#         # ------------------------------------------------
-#         data = {
-#             "name": request.data.get("name", ""),
-#             "sector": request.data.get("sector", ""),
-#             "industry": request.data.get("industry", ""),
-#             "emp_number": request.data.get("emp_number", ""),
-#             "address": request.data.get("address", ""),
-#             "info": request.data.get("info", ""),
-#             "insta_link": request.data.get("insta_link", ""),
-#             "face_link": request.data.get("face_link", ""),
-#             "youtube_link": request.data.get("youtube_link", ""),
-#             "twitter_link": request.data.get("twitter_link", ""),
-#             "web_link": request.data.get("web_link", ""),
-#             "linkedin_link": request.data.get("linkedin_link", ""),
-#         }
-
-#         print("Received form data:", data)
-
-#         # ===================================================
-#         # INSERT / UPDATE CompName
-#         # ===================================================
-#         comp_name_obj, created_name = CompName.objects.update_or_create(
-#             ticker=ticker,
-#             defaults={
-#                 "name": data["name"],
-#                 "exchange": exchange,
-#                 "sector": data["sector"],
-#                 "industry": data["industry"],
-#                 "logo": logo_url,
-#             }
-#         )
-
-#         print("CompName saved:", comp_name_obj)
-
-#         # ===================================================
-#         # INSERT / UPDATE CompInfo
-#         # ===================================================
-#         comp_info_obj, created_info = CompInfo.objects.update_or_create(
-#             ticker=ticker,
-#             defaults={
-#                 "exchange": exchange,
-#                 "emp_number": data["emp_number"],
-#                 "address": data["address"],
-#                 "info": data["info"],
-#                 "insta_link": data["insta_link"],
-#                 "face_link": data["face_link"],
-#                 "youtube_link": data["youtube_link"],
-#                 "twitter_link": data["twitter_link"],
-#                 "web_link": data["web_link"],
-#                 "linkedin_link": data["linkedin_link"],
-#             }
-#         )
-
-#         print("CompInfo saved:", comp_info_obj)
-
-#         return Response({
-#             "message": "Company data saved successfully",
-#             "ticker": ticker,
-#             "exchange": exchange,
-#             "logo_url": logo_url,
-#             "comp_name_created": created_name,
-#             "comp_info_created": created_info,
-#         })
-
-#     except Exception as e:
-#         print("UPLOAD LOGO ERROR:", str(e))
-#         return Response({"error": str(e)}, status=500)
 
 @api_view(['POST'])
 def upload_logo(request):

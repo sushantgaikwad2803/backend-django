@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import (
     ReportList,
-    view_pdf,
+    # view_pdf,
      upload_logo,
     RandomCompanyReport,
     AllReportsOfCompany,
@@ -19,7 +19,7 @@ urlpatterns = [
     path('api/reports/', ReportList.as_view(), name='report-list'),
 
     # View full PDF
-    path('report/view/<int:pk>/', view_pdf, name='view-pdf'),
+    # path('report/view/<int:pk>/', view_pdf, name='view-pdf'),
 
     # Random company + report
     path('random-company-report/', RandomCompanyReport.as_view(), name='random-company-report'),
