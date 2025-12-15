@@ -7,7 +7,8 @@ from .views import (
     AllReportsOfCompany,
     CompanyList , 
     RandomSixCompanies , 
-    download_report
+    download_report,
+    auto_upload_pdf_from_url
 )
 from . import views
 
@@ -34,6 +35,7 @@ urlpatterns = [
     path("upload-pdf/", views.upload_pdf, name="upload_pdf"),
     
     path('upload-logo/', upload_logo, name='upload-logo'),
-
+    
+    path("auto-upload-pdf/", auto_upload_pdf_from_url),
     
 ]

@@ -332,7 +332,137 @@ def upload_pdf(request):
         "results": result_list
     })
 
+from bs4 import BeautifulSoup
 
+@csrf_exempt
+def auto_upload_pdf_from_url(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "Use POST method"}, status=400)
+
+    url = request.POST.get("url")
+    exchange = request.POST.get("exchange")
+    ticker = request.POST.get("ticker")
+
+    if not all([url, exchange, ticker]):
+        return JsonResponse({
+            "error": "url, exchange and ticker are required"
+        }, status=400)
+
+    # Fetch page
+    page_response = requests.get(url, timeout=30)
+    soup = BeautifulSoup(page_response.text, "html.parser")
+
+    # Collect PDF links
+    pdf_links = []
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        if href.lower().endswith(".pdf"):
+            pdf_links.append(
+                href if href.startswith("http")
+                else f"https://www.annualreports.com{href}"
+            )
+
+    if not pdf_links:
+        return JsonResponse({"error": "No PDF links found"}, status=404)
+
+    results = []
+
+    for pdf_link in pdf_links:
+        pdf_public_id = None
+        thumb_public_id = None
+
+        try:
+            # Download PDF
+            pdf_resp = requests.get(pdf_link, timeout=60)
+            pdf_resp.raise_for_status()
+            pdf_bytes = pdf_resp.content
+
+            # Extract year from filename
+            filename = pdf_link.split("/")[-1]
+            year_digits = "".join(filter(str.isdigit, filename))
+            year = int(year_digits[:4])
+
+            with transaction.atomic():
+                # -----------------------------
+                # 1️⃣ Upload PDF (IMAGE TYPE)
+                # -----------------------------
+                pdf_public_id = f"pdf_reports/{exchange}_{ticker}_{year}"
+
+                pdf_upload = cloudinary.uploader.upload_large(
+                    BytesIO(pdf_bytes),
+                    public_id=pdf_public_id,
+                    resource_type="image",   # 🔥 KEY FIX
+                    folder="pdf_reports",
+                    format="pdf",            # 🔥 KEY FIX
+                    overwrite=True,
+                    chunk_size=6000000
+                )
+
+                pdf_url = pdf_upload["secure_url"]
+
+                # -----------------------------
+                # 2️⃣ Generate Thumbnail
+                # -----------------------------
+                thumbnail_url = None
+                try:
+                    pages = convert_from_bytes(pdf_bytes, first_page=1, last_page=1)
+                    thumb_image = pages[0].resize((300, 400))
+
+                    img_io = BytesIO()
+                    thumb_image.save(img_io, format="JPEG")
+
+                    thumb_public_id = f"report_thumbnails/{exchange}_{ticker}_{year}_thumb"
+
+                    thumb_upload = cloudinary.uploader.upload(
+                        img_io.getvalue(),
+                        public_id=thumb_public_id,
+                        resource_type="image",
+                        overwrite=True
+                    )
+
+                    thumbnail_url = thumb_upload["secure_url"]
+                except:
+                    pass
+
+                # -----------------------------
+                # 3️⃣ Insert / Update DB
+                # -----------------------------
+                Report.objects.update_or_create(
+                    exchange=exchange,
+                    ticker=ticker,
+                    year=year,
+                    defaults={
+                        "pdf_url": pdf_url,
+                        "thumbnail_url": thumbnail_url,
+                    }
+                )
+
+            results.append({
+                "year": year,
+                "status": "success",
+                "pdf_url": pdf_url
+            })
+
+        except Exception as e:
+            # Cleanup Cloudinary if partial failure
+            try:
+                if pdf_public_id:
+                    cloudinary.uploader.destroy(pdf_public_id, resource_type="image")
+                if thumb_public_id:
+                    cloudinary.uploader.destroy(thumb_public_id, resource_type="image")
+            except:
+                pass
+
+            results.append({
+                "pdf": pdf_link,
+                "status": "error",
+                "reason": str(e)
+            })
+
+    return JsonResponse({
+        "message": "Auto PDF Upload Completed",
+        "results": results
+    })
 
 @api_view(['POST'])
 def upload_logo(request):
