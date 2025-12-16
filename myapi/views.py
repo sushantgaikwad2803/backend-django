@@ -333,6 +333,37 @@ def upload_pdf(request):
     })
 
 from bs4 import BeautifulSoup
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+import time
+
+def download_pdf_with_headers(pdf_url):
+    session = requests.Session()
+
+    retries = Retry(
+        total=5,
+        backoff_factor=1,
+        status_forcelist=[403, 429, 500, 502, 503, 504],
+        allowed_methods=["GET"]
+    )
+    session.mount("https://", HTTPAdapter(max_retries=retries))
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0 Safari/537.36"
+        ),
+        "Accept": "application/pdf",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.annualreports.com/",
+        "Connection": "keep-alive",
+    }
+
+    response = session.get(pdf_url, headers=headers, timeout=60)
+    response.raise_for_status()
+    return response.content
+
 
 @csrf_exempt
 def auto_upload_pdf_from_url(request):
@@ -344,15 +375,29 @@ def auto_upload_pdf_from_url(request):
     ticker = request.POST.get("ticker")
 
     if not all([url, exchange, ticker]):
-        return JsonResponse({
-            "error": "url, exchange and ticker are required"
-        }, status=400)
+        return JsonResponse(
+            {"error": "url, exchange and ticker are required"},
+            status=400
+        )
 
-    # Fetch page
-    page_response = requests.get(url, timeout=30)
+    # -----------------------------
+    # Fetch report page
+    # -----------------------------
+    try:
+        page_response = requests.get(
+            url,
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=30
+        )
+        page_response.raise_for_status()
+    except Exception as e:
+        return JsonResponse({"error": f"Failed to fetch page: {e}"}, status=400)
+
     soup = BeautifulSoup(page_response.text, "html.parser")
 
+    # -----------------------------
     # Collect PDF links
+    # -----------------------------
     pdf_links = []
     for a in soup.find_all("a", href=True):
         href = a["href"]
@@ -367,33 +412,34 @@ def auto_upload_pdf_from_url(request):
 
     results = []
 
+    # -----------------------------
+    # Process each PDF
+    # -----------------------------
     for pdf_link in pdf_links:
         pdf_public_id = None
         thumb_public_id = None
 
         try:
-            # Download PDF
-            pdf_resp = requests.get(pdf_link, timeout=60)
-            pdf_resp.raise_for_status()
-            pdf_bytes = pdf_resp.content
+            # ⏬ Download PDF safely
+            pdf_bytes = download_pdf_with_headers(pdf_link)
 
-            # Extract year from filename
+            # 🗓 Extract year
             filename = pdf_link.split("/")[-1]
-            year_digits = "".join(filter(str.isdigit, filename))
-            year = int(year_digits[:4])
+            digits = "".join(filter(str.isdigit, filename))
+            year = int(digits[:4])
 
             with transaction.atomic():
                 # -----------------------------
-                # 1️⃣ Upload PDF (IMAGE TYPE)
+                # Upload PDF (Browser preview)
                 # -----------------------------
                 pdf_public_id = f"pdf_reports/{exchange}_{ticker}_{year}"
 
                 pdf_upload = cloudinary.uploader.upload_large(
                     BytesIO(pdf_bytes),
                     public_id=pdf_public_id,
-                    resource_type="image",   # 🔥 KEY FIX
+                    resource_type="image",   # 🔥 REQUIRED
                     folder="pdf_reports",
-                    format="pdf",            # 🔥 KEY FIX
+                    format="pdf",            # 🔥 REQUIRED
                     overwrite=True,
                     chunk_size=6000000
                 )
@@ -401,7 +447,7 @@ def auto_upload_pdf_from_url(request):
                 pdf_url = pdf_upload["secure_url"]
 
                 # -----------------------------
-                # 2️⃣ Generate Thumbnail
+                # Generate Thumbnail
                 # -----------------------------
                 thumbnail_url = None
                 try:
@@ -411,7 +457,9 @@ def auto_upload_pdf_from_url(request):
                     img_io = BytesIO()
                     thumb_image.save(img_io, format="JPEG")
 
-                    thumb_public_id = f"report_thumbnails/{exchange}_{ticker}_{year}_thumb"
+                    thumb_public_id = (
+                        f"report_thumbnails/{exchange}_{ticker}_{year}_thumb"
+                    )
 
                     thumb_upload = cloudinary.uploader.upload(
                         img_io.getvalue(),
@@ -425,7 +473,7 @@ def auto_upload_pdf_from_url(request):
                     pass
 
                 # -----------------------------
-                # 3️⃣ Insert / Update DB
+                # Insert / Update DB
                 # -----------------------------
                 Report.objects.update_or_create(
                     exchange=exchange,
@@ -443,13 +491,20 @@ def auto_upload_pdf_from_url(request):
                 "pdf_url": pdf_url
             })
 
+            # ⏱ Prevent rate-limit
+            time.sleep(2)
+
         except Exception as e:
-            # Cleanup Cloudinary if partial failure
+            # Cleanup partial uploads
             try:
                 if pdf_public_id:
-                    cloudinary.uploader.destroy(pdf_public_id, resource_type="image")
+                    cloudinary.uploader.destroy(
+                        pdf_public_id, resource_type="image"
+                    )
                 if thumb_public_id:
-                    cloudinary.uploader.destroy(thumb_public_id, resource_type="image")
+                    cloudinary.uploader.destroy(
+                        thumb_public_id, resource_type="image"
+                    )
             except:
                 pass
 
