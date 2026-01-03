@@ -93,6 +93,7 @@ MIDDLEWARE = [
 # ✅ Use this in production
 CORS_ALLOWED_ORIGINS = [
     "https://frontend-react-mu-lake.vercel.app",
+    "https://backend-production-f9ab.up.railway.app",
 ]
 
 # OR (TEMPORARY TESTING ONLY)
