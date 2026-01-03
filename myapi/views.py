@@ -519,6 +519,8 @@ def auto_upload_pdf_from_url(request):
         "results": results
     })
 
+
+
 @api_view(['POST'])
 def upload_logo(request):
     cloudinary_public_id = None   # Track uploaded image for rollback

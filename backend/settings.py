@@ -22,31 +22,42 @@ ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "*").split(",")
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": "mydb",
-        "USER": "postgres",
-        "PASSWORD": "12345",
-        "HOST": "localhost",
-        "PORT": "5432",
+        "NAME": os.environ.get("DB_NAME"),
+        "USER": os.environ.get("DB_USER"),
+        "PASSWORD": os.environ.get("DB_PASSWORD"),
+        "HOST": os.environ.get("DB_HOST"),
+        "PORT": os.environ.get("DB_PORT"),
     }
 }
+# postgresql://postgres:QHLbtcvFvZRxzHgEtiIZoSqJRDFuCwRv@switchback.proxy.rlwy.net:52348/railway
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.postgresql",
+#         "NAME": "mydb",
+#         "USER": "postgres",
+#         "PASSWORD": "12345",
+#         "HOST": "localhost",
+#         "PORT": "5432",
+#     }
+# }
 
-database_url = os.environ.get("DATABASE_URL")
-if database_url:
-    DATABASES["default"] = dj_database_url.parse(database_url)
+# database_url = os.environ.get("DATABASE_URL")
+# if database_url:
+#     DATABASES["default"] = dj_database_url.parse(database_url)
 
 # =====================
 # CLOUDINARY
 # =====================
 cloudinary.config(
-    cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME", "drxngq1yl"),
-    api_key=os.environ.get("CLOUDINARY_API_KEY", "617395552861563"),
-    api_secret=os.environ.get("CLOUDINARY_API_SECRET", "5rP0TZTPiib_Uwjlp1NxtTpFMZ4"),
+    cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME", "dshlkzsvy"),
+    api_key=os.environ.get("CLOUDINARY_API_KEY", "761437497879732"),
+    api_secret=os.environ.get("CLOUDINARY_API_SECRET", "WNfDg7XptuA736TazUpZstbuSoE"),
 )
 
 # =====================
 # INSTALLED APPS
 # =====================
-INSTALLED_APPS = [
+INSTALLED_APPS = [    
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -65,6 +76,7 @@ INSTALLED_APPS = [
 # =====================
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
