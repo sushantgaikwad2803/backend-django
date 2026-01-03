@@ -75,9 +75,9 @@ INSTALLED_APPS = [
 # MIDDLEWARE (ORDER MATTERS)
 # =====================
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
-    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -91,9 +91,9 @@ MIDDLEWARE = [
 # =====================
 
 # ✅ Use this in production
-CORS_ALLOWED_ORIGINS = [
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
     "https://frontend-react-mu-lake.vercel.app",
-    "https://backend-production-f9ab.up.railway.app",
 ]
 
 # OR (TEMPORARY TESTING ONLY)
@@ -123,6 +123,7 @@ CORS_ALLOW_HEADERS = [
 ]
 
 CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
     "https://frontend-react-mu-lake.vercel.app",
 ]
 
