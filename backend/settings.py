@@ -1,52 +1,52 @@
-print("🔥 SETTINGS.PY LOADED 🔥")
-
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import dj_database_url
 import cloudinary
-from corsheaders.defaults import default_headers, default_methods
 
-# ==================================================
-# BASE
-# ==================================================
+# Load environment variables
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# ==================================================
+# =====================
 # SECURITY
-# ==================================================
+# =====================
 SECRET_KEY = os.environ.get("SECRET_KEY", "unsafe-secret-key")
 DEBUG = os.environ.get("DEBUG", "False").lower() == "true"
-
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "*").split(",")
 
-# ==================================================
+# =====================
 # DATABASE
-# ==================================================
+# =====================
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("DB_NAME"),
-        "USER": os.environ.get("DB_USER"),
-        "PASSWORD": os.environ.get("DB_PASSWORD"),
-        "HOST": os.environ.get("DB_HOST"),
-        "PORT": os.environ.get("DB_PORT"),
+        "NAME": "mydb",
+        "USER": "postgres",
+        "PASSWORD": "12345",
+        "HOST": "localhost",
+        "PORT": "5432",
     }
 }
 
-# ==================================================
+database_url = os.environ.get("DATABASE_URL")
+if database_url:
+    DATABASES["default"] = dj_database_url.parse(database_url)
+
+# =====================
 # CLOUDINARY
-# ==================================================
+# =====================
+
 cloudinary.config(
     cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME", "dshlkzsvy"),
     api_key=os.environ.get("CLOUDINARY_API_KEY", "761437497879732"),
     api_secret=os.environ.get("CLOUDINARY_API_SECRET", "WNfDg7XptuA736TazUpZstbuSoE"),
 )
 
-# ==================================================
+# =====================
 # INSTALLED APPS
-# ==================================================
+# =====================
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -61,15 +61,13 @@ INSTALLED_APPS = [
     "myapi",
 ]
 
-# ==================================================
-# MIDDLEWARE (ORDER IS CRITICAL)
-# ==================================================
+# =====================
+# MIDDLEWARE (ORDER MATTERS)
+# =====================
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",      # MUST BE FIRST
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
-
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -77,38 +75,48 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-# ==================================================
-# CORS + CSRF (FINAL & CORRECT)
-# ==================================================
+# =====================
+# CORS CONFIGURATION (FIXED ✅)
+# =====================
 
+# ✅ Use this in production
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
     "https://frontend-react-mu-lake.vercel.app",
 ]
 
-CORS_ALLOW_CREDENTIALS = False
-CORS_URLS_REGEX = r"^/.*$"
+# OR (TEMPORARY TESTING ONLY)
+# CORS_ALLOW_ALL_ORIGINS = True
 
-CORS_ALLOW_HEADERS = list(default_headers)
-CORS_ALLOW_METHODS = list(default_methods)
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_METHODS = [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+]
+
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
 
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
     "https://frontend-react-mu-lake.vercel.app",
 ]
 
-# ==================================================
-# DJANGO REST FRAMEWORK (IMPORTANT FOR OPTIONS)
-# ==================================================
-REST_FRAMEWORK = {
-    "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.AllowAny",
-    ]
-}
-
-# ==================================================
-# URLS & TEMPLATES
-# ==================================================
+# =====================
+# URL & TEMPLATES
+# =====================
 ROOT_URLCONF = "backend.urls"
 
 TEMPLATES = [
@@ -128,17 +136,17 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "backend.wsgi.application"
 
-# ==================================================
+# =====================
 # STATIC & MEDIA
-# ==================================================
+# =====================
 STATIC_URL = "/static/"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# ==================================================
+# =====================
 # SECURITY HEADERS
-# ==================================================
+# =====================
 X_FRAME_OPTIONS = "ALLOWALL"
 SECURE_BROWSER_XSS_FILTER = False
