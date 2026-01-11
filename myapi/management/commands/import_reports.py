@@ -166,11 +166,11 @@ class Command(BaseCommand):
     help = "Import annual report PDFs from AnnualReports.com"
 
     BASE_URL = "https://www.annualreports.com"
-    COMPANY_URL = "https://www.annualreports.com/Company/primerica-inc"
+    COMPANY_URL = "https://www.annualreports.com/Company/1spatial-plc"
 
     # 🔒 SAME AS MANUAL UPLOAD
     EXCHANGE = "NYSE"
-    TICKER = "PRI"
+    TICKER = "SPA"
 
     HEADERS = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
