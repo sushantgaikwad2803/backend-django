@@ -2,7 +2,9 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 import dj_database_url
-import cloudinary
+import firebase_admin
+from firebase_admin import credentials, storage
+
 
 # =====================
 # BASE
@@ -120,14 +122,19 @@ DATABASES = {
 #     }
 # }
 
+
 # =====================
-# CLOUDINARY
+# firebase    
 # =====================
-cloudinary.config(
-    cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME" , "dqypidxvl"),
-    api_key=os.environ.get("CLOUDINARY_API_KEY","136136353496733"),
-    api_secret=os.environ.get("CLOUDINARY_API_SECRET","8TMwoCOZAQ-NLYDfHmIi1vS-734"),
+cred = credentials.Certificate(
+    os.path.join(BASE_DIR, "firebase_key.json")
 )
+
+firebase_admin.initialize_app(cred, {
+    'storageBucket': 'report-4b52b.firebasestorage.app'  # from your screenshot
+})
+
+FIREBASE_BUCKET = storage.bucket()
 
 # =====================
 # URLS & WSGI
