@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 import dj_database_url
 import firebase_admin
 from firebase_admin import credentials, storage
+import json
+
 
 # =====================
 # BASE
@@ -45,6 +47,7 @@ INSTALLED_APPS = [
 # =====================
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
 
     # CORS must be high
     "corsheaders.middleware.CorsMiddleware",
@@ -125,15 +128,21 @@ DATABASES = {
 # =====================
 # firebase    
 # =====================
-cred = credentials.Certificate(
-    os.path.join(BASE_DIR, "firebase_key.json")
-)
 
-firebase_admin.initialize_app(cred, {
-    'storageBucket': 'report-4b52b.firebasestorage.app'  # from your screenshot
-})
-
-FIREBASE_BUCKET = storage.bucket()
+firebase_json = os.environ.get("FIREBASE_CREDENTIALS")
+if firebase_json:
+    try:
+        cred = credentials.Certificate(json.loads(firebase_json))
+        firebase_admin.initialize_app(cred, {
+            'storageBucket': 'report-4b52b.firebasestorage.app'
+        })
+        FIREBASE_BUCKET = storage.bucket()
+    except Exception as e:
+        print("🔥 Firebase init error:", e)
+        FIREBASE_BUCKET = None
+else:
+    print("⚠️ FIREBASE_CREDENTIALS not found")
+    FIREBASE_BUCKET = None
 
 # =====================
 # URLS & WSGI
