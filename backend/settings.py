@@ -6,7 +6,6 @@ import firebase_admin
 from firebase_admin import credentials, storage
 import json
 
-
 # =====================
 # BASE
 # =====================
@@ -26,7 +25,7 @@ ALLOWED_HOSTS = os.environ.get(
 ).split(",")
 
 # =====================
-# APPS
+# APPLICATIONS
 # =====================
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -49,14 +48,12 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
 
-    # CORS must be high
+    # CORS should be high
     "corsheaders.middleware.CorsMiddleware",
 
     "django.middleware.common.CommonMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-
     "django.middleware.csrf.CsrfViewMiddleware",
-
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -70,16 +67,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
 ]
 
-# No cookies / session auth
 CORS_ALLOW_CREDENTIALS = False
 
 CORS_ALLOW_METHODS = [
-    "GET",
-    "POST",
-    "PUT",
-    "PATCH",
-    "DELETE",
-    "OPTIONS",
+    "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS",
 ]
 
 CORS_ALLOW_HEADERS = [
@@ -93,7 +84,7 @@ CORS_ALLOW_HEADERS = [
 ]
 
 # =====================
-# CSRF
+# CSRF CONFIG
 # =====================
 CSRF_TRUSTED_ORIGINS = [
     "https://frontend-nu-amber-11.vercel.app",
@@ -101,42 +92,32 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # =====================
-# DATABASE (RENDER)
+# DATABASE (SAFE)
 # =====================
-
 DATABASES = {
     "default": dj_database_url.parse(
-        os.environ.get("DATABASE_URL"),
+        os.environ.get("DATABASE_URL", "sqlite:///db.sqlite3"),
         conn_max_age=600,
         ssl_require=True,
     )
 }
 
-
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.postgresql",
-#         "NAME": "postgres",
-#         "USER": "postgres",
-#         "PASSWORD": "12345",
-#         "HOST": "localhost",
-#         "PORT": "5432",
-#     }
-# }
-
-
 # =====================
-# firebase    
+# FIREBASE CONFIG
 # =====================
-
 firebase_json = os.environ.get("FIREBASE_CREDENTIALS")
+
 if firebase_json:
     try:
-        cred = credentials.Certificate(json.loads(firebase_json))
-        firebase_admin.initialize_app(cred, {
-            'storageBucket': 'report-4b52b.firebasestorage.app'
-        })
+        # Prevent re-initialization
+        if not firebase_admin._apps:
+            cred = credentials.Certificate(json.loads(firebase_json))
+            firebase_admin.initialize_app(cred, {
+                "storageBucket": "report-4b52b.firebasestorage.app"
+            })
+
         FIREBASE_BUCKET = storage.bucket()
+
     except Exception as e:
         print("🔥 Firebase init error:", e)
         FIREBASE_BUCKET = None
@@ -169,16 +150,22 @@ TEMPLATES = [
 ]
 
 # =====================
-# STATIC & MEDIA
+# STATIC FILES
 # =====================
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# Required for WhiteNoise (production)
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+# =====================
+# MEDIA FILES
+# =====================
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # =====================
-# DEFAULTS
+# DEFAULT SETTINGS
 # =====================
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -187,3 +174,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # =====================
 X_FRAME_OPTIONS = "SAMEORIGIN"
 SECURE_BROWSER_XSS_FILTER = True
+
+# =====================
+# PRODUCTION SECURITY (Enable on Render)
+# =====================
+SECURE_SSL_REDIRECT = False   # change to True on live server
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
