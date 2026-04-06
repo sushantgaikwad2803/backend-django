@@ -15,7 +15,11 @@ class Report(models.Model):
 
 class CompName(models.Model):
     name = models.CharField(max_length=255)
-    ticker = models.CharField(max_length=20, unique=True, blank=True, null=True)
+    ticker = models.CharField(max_length=20)
+
+    class Meta:
+        db_table = 'comp_name'
+        unique_together = ('ticker', 'exchange')
     logo = models.TextField(blank=True, null=True)       # URL or Base64
     exchange = models.CharField(max_length=50, blank=True, null=True)
     sector = models.CharField(max_length=100, blank=True, null=True)
