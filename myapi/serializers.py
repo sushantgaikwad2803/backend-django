@@ -2,7 +2,6 @@ from rest_framework import serializers
 from .models import CompName, CompInfo, Report
 
 class CompanySerializer(serializers.ModelSerializer):
-   class CompanySerializer(serializers.ModelSerializer):
     logo_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -21,7 +20,7 @@ class CompanySerializer(serializers.ModelSerializer):
     def get_logo_url(self, obj):
         request = self.context.get("request")
         if obj.logo:
-            return request.build_absolute_uri(obj.logo.url)
+            return request.build_absolute_uri(obj.logo)
         return None
 
 
