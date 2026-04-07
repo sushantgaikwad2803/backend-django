@@ -2,13 +2,12 @@ from django.urls import path
 from .views import (
     ReportList,
     # view_pdf,
-     upload_logo,
     RandomCompanyReport,
     AllReportsOfCompany,
     CompanyList , 
     RandomSixCompanies , 
     download_report,
-    auto_upload_pdf_from_url
+    # auto_upload_pdf_from_url
 )
 from . import views
 
@@ -32,10 +31,9 @@ urlpatterns = [
     
     path('random-logos/', RandomSixCompanies.as_view(), name='random-logos'),
     
-    path("upload-pdf/", views.upload_pdf, name="upload_pdf"),
+    # path("upload-pdf/", views.upload_pdf, name="upload_pdf"),
     
-    path('upload-logo/', upload_logo, name='upload-logo'),
     
-    path("auto-upload-pdf/", auto_upload_pdf_from_url),
+    # path("auto-upload-pdf/", auto_upload_pdf_from_url),
     
 ]
