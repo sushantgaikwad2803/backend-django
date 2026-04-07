@@ -65,6 +65,7 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = [
     "https://frontend-react-eight-sooty.vercel.app",
     "http://localhost:3000",
+    "https://www.arannualreport.com",
 ]
 
 CORS_ALLOW_CREDENTIALS = False
