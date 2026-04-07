@@ -63,7 +63,7 @@ MIDDLEWARE = [
 # CORS CONFIG
 # =====================
 CORS_ALLOWED_ORIGINS = [
-    "https://frontend-nu-amber-11.vercel.app",
+    "https://frontend-react-eight-sooty.vercel.app",
     "http://localhost:3000",
 ]
 
