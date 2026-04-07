@@ -187,19 +187,62 @@ def download_report(request, report_id):
     except Report.DoesNotExist:
         return HttpResponse("Report not found", status=404)
 
-    # PDF link stored in DB
     pdf_url = report.pdf_url
 
     if not pdf_url:
         return HttpResponse("PDF URL missing", status=400)
 
-    # Download from Cloudinary
-    response = FileResponse(
-        requests.get(pdf_url, stream=True).raw,
-        as_attachment=True,
-        filename=f"{report.ticker}_{report.year}.pdf"
+    mode = request.GET.get("mode", "view")
+
+    try:
+        pdf_response = requests.get(pdf_url, timeout=60)
+        pdf_response.raise_for_status()
+    except Exception as e:
+        return HttpResponse(f"Error fetching PDF: {e}", status=500)
+
+    response = HttpResponse(
+        pdf_response.content,
+        content_type="application/pdf"
     )
+
+    if mode == "download":
+        response["Content-Disposition"] = f'attachment; filename="{report.ticker}_{report.year}.pdf"'
+    else:
+        response["Content-Disposition"] = f'inline; filename="{report.ticker}_{report.year}.pdf"'
+
     return response
+
+from bs4 import BeautifulSoup
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+import time
+
+def download_pdf_with_headers(pdf_url):
+    session = requests.Session()
+
+    retries = Retry(
+        total=5,
+        backoff_factor=1,
+        status_forcelist=[403, 429, 500, 502, 503, 504],
+        allowed_methods=["GET"]
+    )
+    session.mount("https://", HTTPAdapter(max_retries=retries))
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0 Safari/537.36"
+        ),
+        "Accept": "application/pdf",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.annualreports.com/",
+        "Connection": "keep-alive",
+    }
+
+    response = session.get(pdf_url, headers=headers, timeout=60)
+    response.raise_for_status()
+    return response.content
 
 
 # @csrf_exempt
@@ -331,38 +374,6 @@ def download_report(request, report_id):
 #         "message": "PDF Upload Completed",
 #         "results": result_list
 #     })
-
-from bs4 import BeautifulSoup
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
-import time
-
-def download_pdf_with_headers(pdf_url):
-    session = requests.Session()
-
-    retries = Retry(
-        total=5,
-        backoff_factor=1,
-        status_forcelist=[403, 429, 500, 502, 503, 504],
-        allowed_methods=["GET"]
-    )
-    session.mount("https://", HTTPAdapter(max_retries=retries))
-
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0 Safari/537.36"
-        ),
-        "Accept": "application/pdf",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Referer": "https://www.annualreports.com/",
-        "Connection": "keep-alive",
-    }
-
-    response = session.get(pdf_url, headers=headers, timeout=60)
-    response.raise_for_status()
-    return response.content
 
 
 # @csrf_exempt
