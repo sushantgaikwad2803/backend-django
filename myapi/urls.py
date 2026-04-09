@@ -10,8 +10,16 @@ from .views import (
     # auto_upload_pdf_from_url
 )
 from . import views
+from django.http import HttpResponse
+
+def home(request):
+    return HttpResponse("Backend is running 🚀")
+
 
 urlpatterns = [
+
+    path('', home),  # THIS IS ROOT URL
+
     # Companies API
     path('api/companies/', CompanyList.as_view(), name='company-list'),
 
@@ -35,5 +43,6 @@ urlpatterns = [
     
     
     # path("auto-upload-pdf/", auto_upload_pdf_from_url),
+
     
 ]
