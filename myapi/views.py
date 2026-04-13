@@ -29,7 +29,7 @@ def sitemap(request):
     <url><loc>https://arannualreport.com/sectorslist</loc></url>
     """
 
-    # Dynamic company pages
+    # Dynamic pages
     for comp in companies:
         xml += f"""
     <url>
