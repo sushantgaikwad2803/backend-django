@@ -15,22 +15,12 @@ from django.http import HttpResponse
 def home(request):
     return HttpResponse("Backend is running 🚀")
 
-# ✅ Add this new function
-def sitemap(request):
-    xml = """<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-   <url>
-      <loc>https://arannualreport.com/</loc>
-   </url>
-</urlset>
-"""
-    return HttpResponse(xml, content_type='application/xml')
 
 urlpatterns = [
 
     path('', home),  # THIS IS ROOT URL
 
-     path('sitemap.xml', sitemap),
+     path('sitemap.xml', views.sitemap),
 
     # Companies API
     path('api/companies/', CompanyList.as_view(), name='company-list'),
