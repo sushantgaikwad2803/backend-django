@@ -16,7 +16,12 @@ from rest_framework.decorators import api_view
 
 
 def sitemap(request):
-    companies = CompName.objects.all().only("ticker", "exchange")
+    from .models import CompName
+
+    companies = CompName.objects.exclude(
+        ticker__isnull=True,
+        exchange__isnull=True
+    )
 
     xml = """<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
