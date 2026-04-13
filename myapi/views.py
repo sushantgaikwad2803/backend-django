@@ -15,6 +15,32 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
 
 
+def sitemap(request):
+    companies = CompName.objects.all().only("ticker", "exchange")
+
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+"""
+
+    # Static pages
+    xml += """
+    <url><loc>https://arannualreport.com/</loc></url>
+    <url><loc>https://arannualreport.com/AllCompanies</loc></url>
+    <url><loc>https://arannualreport.com/sectorslist</loc></url>
+    """
+
+    # Dynamic company pages
+    for comp in companies:
+        xml += f"""
+    <url>
+        <loc>https://arannualreport.com/company-reports/{comp.ticker}/{comp.exchange}</loc>
+    </url>
+    """
+
+    xml += "</urlset>"
+
+    return HttpResponse(xml, content_type="application/xml")
+
 class ReportList(APIView):
     def get(self, request):
         reports = Report.objects.all()
