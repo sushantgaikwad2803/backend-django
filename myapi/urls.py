@@ -20,7 +20,9 @@ urlpatterns = [
 
     path('', home),  # THIS IS ROOT URL
 
-     path('sitemap.xml', views.sitemap),
+    path('ping/', views.ping),
+
+    path('sitemap.xml', views.sitemap),
 
     # Companies API
     path('api/companies/', CompanyList.as_view(), name='company-list'),
