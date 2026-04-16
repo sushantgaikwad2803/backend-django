@@ -14,7 +14,9 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
 
-
+def ping(request):
+    return HttpResponse("OK")
+    
 def sitemap(request):
     from .models import CompName
 
