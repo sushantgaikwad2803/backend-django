@@ -158,6 +158,7 @@ from bs4 import BeautifulSoup
 from pdf2image import convert_from_bytes
 # import cloudinary.uploader
 
+
 from myapi.models import Report
 
 
