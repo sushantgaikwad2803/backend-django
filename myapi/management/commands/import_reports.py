@@ -147,197 +147,206 @@
 #         self.stdout.write("==============================\n")
 
 
-import requests
-import time
-from io import BytesIO
-
-from django.core.management.base import BaseCommand
-from django.db import transaction
-
-from bs4 import BeautifulSoup
-from pdf2image import convert_from_bytes
-# import cloudinary.uploader
 
 
-from myapi.models import Report
 
 
-class Command(BaseCommand):
+
+
+
+
+
+# import requests
+# import time
+# from io import BytesIO
+
+# from django.core.management.base import BaseCommand
+# from django.db import transaction
+
+# from bs4 import BeautifulSoup
+# from pdf2image import convert_from_bytes
+# # import cloudinary.uploader
+
+
+# from myapi.models import Report
+
+
+# class Command(BaseCommand):
     
-    help = "Import annual report PDFs from AnnualReports.com"
+#     help = "Import annual report PDFs from AnnualReports.com"
 
-    BASE_URL = "https://www.annualreports.com"
-    COMPANY_URL = "https://www.annualreports.com/Company/1spatial-plc"
+#     BASE_URL = "https://www.annualreports.com"
+#     COMPANY_URL = "https://www.annualreports.com/Company/1spatial-plc"
 
-    # 🔒 SAME AS MANUAL UPLOAD
-    EXCHANGE = "NYSE"
-    TICKER = "SPA"
+#     # 🔒 SAME AS MANUAL UPLOAD
+#     EXCHANGE = "NYSE"
+#     TICKER = "SPA"
 
-    HEADERS = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        "Accept": "text/html,application/pdf",
-    }
+#     HEADERS = {
+#         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+#         "Accept": "text/html,application/pdf",
+#     }
 
-    def handle(self, *args, **kwargs):
-        self.stdout.write("🚀 Starting annual report import...\n")
+#     def handle(self, *args, **kwargs):
+#         self.stdout.write("🚀 Starting annual report import...\n")
 
-        # --------------------------
-        # 1️⃣ Fetch company page
-        # --------------------------
-        try:
-            response = requests.get(
-                self.COMPANY_URL,
-                headers=self.HEADERS,
-                timeout=30
-            )
-            response.raise_for_status()
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(f"❌ Failed to open page: {e}"))
-            return
+#         # --------------------------
+#         # 1️⃣ Fetch company page
+#         # --------------------------
+#         try:
+#             response = requests.get(
+#                 self.COMPANY_URL,
+#                 headers=self.HEADERS,
+#                 timeout=30
+#             )
+#             response.raise_for_status()
+#         except Exception as e:
+#             self.stdout.write(self.style.ERROR(f"❌ Failed to open page: {e}"))
+#             return
 
-        soup = BeautifulSoup(response.text, "html.parser")
-        links = soup.select("a[href$='.pdf']")
+#         soup = BeautifulSoup(response.text, "html.parser")
+#         links = soup.select("a[href$='.pdf']")
 
-        if not links:
-            self.stdout.write(self.style.ERROR("❌ No PDF links found"))
-            return
+#         if not links:
+#             self.stdout.write(self.style.ERROR("❌ No PDF links found"))
+#             return
 
-        self.stdout.write(f"📄 Found {len(links)} PDF reports\n")
+#         self.stdout.write(f"📄 Found {len(links)} PDF reports\n")
 
-        success, failed = 0, 0
+#         success, failed = 0, 0
 
-        # --------------------------
-        # 2️⃣ Process PDFs
-        # --------------------------
-        for link in links:
-            pdf_url = link["href"]
-            if not pdf_url.startswith("http"):
-                pdf_url = self.BASE_URL + pdf_url
+#         # --------------------------
+#         # 2️⃣ Process PDFs
+#         # --------------------------
+#         for link in links:
+#             pdf_url = link["href"]
+#             if not pdf_url.startswith("http"):
+#                 pdf_url = self.BASE_URL + pdf_url
 
-            filename = pdf_url.split("/")[-1]
+#             filename = pdf_url.split("/")[-1]
 
-            # 🔍 Extract year
-            digits = "".join(filter(str.isdigit, filename))
-            if len(digits) < 4:
-                self.stdout.write(f"⚠️ Skipped (no year): {filename}")
-                continue
+#             # 🔍 Extract year
+#             digits = "".join(filter(str.isdigit, filename))
+#             if len(digits) < 4:
+#                 self.stdout.write(f"⚠️ Skipped (no year): {filename}")
+#                 continue
 
-            year = int(digits[:4])
+#             year = int(digits[:4])
 
-            # ❌ Prevent duplicates
-            if Report.objects.filter(
-                exchange=self.EXCHANGE,
-                ticker=self.TICKER,
-                year=year
-            ).exists():
-                self.stdout.write(f"⚠️ Already exists: {year}")
-                continue
+#             # ❌ Prevent duplicates
+#             if Report.objects.filter(
+#                 exchange=self.EXCHANGE,
+#                 ticker=self.TICKER,
+#                 year=year
+#             ).exists():
+#                 self.stdout.write(f"⚠️ Already exists: {year}")
+#                 continue
 
-            self.stdout.write(f"⬇️ Downloading {year} report")
+#             self.stdout.write(f"⬇️ Downloading {year} report")
 
-            pdf_public_id = None
-            thumb_public_id = None
+#             pdf_public_id = None
+#             thumb_public_id = None
 
-            try:
-                pdf_response = requests.get(
-                    pdf_url,
-                    headers=self.HEADERS,
-                    timeout=60
-                )
-                pdf_response.raise_for_status()
+#             try:
+#                 pdf_response = requests.get(
+#                     pdf_url,
+#                     headers=self.HEADERS,
+#                     timeout=60
+#                 )
+#                 pdf_response.raise_for_status()
 
-                pdf_bytes = pdf_response.content
+#                 pdf_bytes = pdf_response.content
 
-                with transaction.atomic():
-                    # --------------------------
-                    # 3️⃣ Upload PDF (Cloudinary)
-                    # --------------------------
-                    pdf_public_id = f"pdf_reports/{self.EXCHANGE}_{self.TICKER}_{year}"
+#                 with transaction.atomic():
+#                     # --------------------------
+#                     # 3️⃣ Upload PDF (Cloudinary)
+#                     # --------------------------
+#                     pdf_public_id = f"pdf_reports/{self.EXCHANGE}_{self.TICKER}_{year}"
 
-                    pdf_upload = cloudinary.uploader.upload_large(
-                        BytesIO(pdf_bytes),
-                        public_id=pdf_public_id,
-                        resource_type="raw",
-                        folder="pdf_reports",
-                        format="pdf",
-                        overwrite=True,
-                        chunk_size=6000000
-                    )
+#                     pdf_upload = cloudinary.uploader.upload_large(
+#                         BytesIO(pdf_bytes),
+#                         public_id=pdf_public_id,
+#                         resource_type="raw",
+#                         folder="pdf_reports",
+#                         format="pdf",
+#                         overwrite=True,
+#                         chunk_size=6000000
+#                     )
 
-                    pdf_cloud_url = pdf_upload["secure_url"]
+#                     pdf_cloud_url = pdf_upload["secure_url"]
 
-                    # --------------------------
-                    # 4️⃣ Generate thumbnail
-                    # --------------------------
-                    thumbnail_url = None
-                    try:
-                        pages = convert_from_bytes(
-                            pdf_bytes,
-                            first_page=1,
-                            last_page=1
-                        )
+#                     # --------------------------
+#                     # 4️⃣ Generate thumbnail
+#                     # --------------------------
+#                     thumbnail_url = None
+#                     try:
+#                         pages = convert_from_bytes(
+#                             pdf_bytes,
+#                             first_page=1,
+#                             last_page=1
+#                         )
 
-                        thumb_image = pages[0].resize((300, 400))
-                        img_io = BytesIO()
-                        thumb_image.save(img_io, format="JPEG")
+#                         thumb_image = pages[0].resize((300, 400))
+#                         img_io = BytesIO()
+#                         thumb_image.save(img_io, format="JPEG")
 
-                        thumb_public_id = (
-                            f"report_thumbnails/"
-                            f"{self.EXCHANGE}_{self.TICKER}_{year}_thumb"
-                        )
+#                         thumb_public_id = (
+#                             f"report_thumbnails/"
+#                             f"{self.EXCHANGE}_{self.TICKER}_{year}_thumb"
+#                         )
 
-                        thumb_upload = cloudinary.uploader.upload(
-                            img_io.getvalue(),
-                            public_id=thumb_public_id,
-                            folder="report_thumbnails",
-                            resource_type="image",
-                            overwrite=True
-                        )
+#                         thumb_upload = cloudinary.uploader.upload(
+#                             img_io.getvalue(),
+#                             public_id=thumb_public_id,
+#                             folder="report_thumbnails",
+#                             resource_type="image",
+#                             overwrite=True
+#                         )
 
-                        thumbnail_url = thumb_upload["secure_url"]
+#                         thumbnail_url = thumb_upload["secure_url"]
 
-                    except Exception as thumb_err:
-                        self.stdout.write(
-                            self.style.WARNING(
-                                f"⚠️ Thumbnail failed for {year}: {thumb_err}"
-                            )
-                        )
+#                     except Exception as thumb_err:
+#                         self.stdout.write(
+#                             self.style.WARNING(
+#                                 f"⚠️ Thumbnail failed for {year}: {thumb_err}"
+#                             )
+#                         )
 
-                    # --------------------------
-                    # 5️⃣ Save DB (SAME AS API)
-                    # --------------------------
-                    Report.objects.create(
-                        exchange=self.EXCHANGE,
-                        ticker=self.TICKER,
-                        year=year,
-                        pdf_url=pdf_cloud_url,
-                        thumbnail_url=thumbnail_url,
-                    )
+#                     # --------------------------
+#                     # 5️⃣ Save DB (SAME AS API)
+#                     # --------------------------
+#                     Report.objects.create(
+#                         exchange=self.EXCHANGE,
+#                         ticker=self.TICKER,
+#                         year=year,
+#                         pdf_url=pdf_cloud_url,
+#                         thumbnail_url=thumbnail_url,
+#                     )
 
-                success += 1
-                self.stdout.write(self.style.SUCCESS(f"✅ Saved {year}"))
+#                 success += 1
+#                 self.stdout.write(self.style.SUCCESS(f"✅ Saved {year}"))
 
-                time.sleep(2)  # prevent IP block
+#                 time.sleep(2)  # prevent IP block
 
-            except Exception as e:
-                failed += 1
+#             except Exception as e:
+#                 failed += 1
 
-                # Cleanup partial uploads
-                try:
-                    if pdf_public_id:
-                        cloudinary.uploader.destroy(
-                            pdf_public_id, resource_type="raw"
-                        )
-                    if thumb_public_id:
-                        cloudinary.uploader.destroy(
-                            thumb_public_id, resource_type="image"
-                        )
-                except:
-                    pass
+#                 # Cleanup partial uploads
+#                 try:
+#                     if pdf_public_id:
+#                         cloudinary.uploader.destroy(
+#                             pdf_public_id, resource_type="raw"
+#                         )
+#                     if thumb_public_id:
+#                         cloudinary.uploader.destroy(
+#                             thumb_public_id, resource_type="image"
+#                         )
+#                 except:
+#                     pass
 
-                self.stdout.write(self.style.ERROR(f"❌ Failed {year}: {e}"))
+#                 self.stdout.write(self.style.ERROR(f"❌ Failed {year}: {e}"))
 
-        self.stdout.write("\n==============================")
-        self.stdout.write(self.style.SUCCESS(f"✅ Success: {success}"))
+#         self.stdout.write("\n==============================")
+#         self.stdout.write(self.style.SUCCESS(f"✅ Success: {success}"))
         self.stdout.write(self.style.ERROR(f"❌ Failed: {failed}"))
         self.stdout.write("==============================\n")
